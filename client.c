@@ -17,7 +17,7 @@ unsigned short serv_port = 25020; //port number used by the server
 char serv_ip[]="127.0.0.1";//server IP Address
 
 char rbuff[128]; //buffer for recieving messages
-char sbuff[128] = "===GOOD AFTERNOON===";// buffer for sending messages
+char sbuff[128] = "===DEBAJYOTI KARMAKAR===";// buffer for sending messages
 
 int main()
 {
@@ -46,7 +46,7 @@ int main()
 		close(skfd);
 		exit(1);
 	}
-	printf("\nCLIENT: Connected to the server.\n");
+	printf("\nCLIENT: Connected to the server.\n");//upto this
 	
 	//send a message to the echo server
 	if((w=write(skfd,sbuff,128))<0)

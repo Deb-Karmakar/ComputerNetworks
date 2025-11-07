@@ -13,7 +13,7 @@ struct sockaddr_in serv_addr;
 int skfd, r, w;
 
 unsigned short serv_port = 25020; //port number used by the server
-char serv_ip[]="192.168.21.43";//server IP Address
+char serv_ip[]="192.168.21.25";//server IP Address
 
 //char rbuff[128]; //buffer for recieving messages
 // buffer for sending messages
@@ -52,8 +52,9 @@ int main()
       	{
       		char sbuff[128];
       		//scans the client's message
-		printf("Enter Server's message:\n");
-		scanf("%s",sbuff);
+		printf("Enter Client's message:\n");
+		//scanf("%s",sbuff);
+		fgets(sbuff, sizeof(sbuff), stdin);
 		printf("\nCLIENT: Message to the server: %s\n",sbuff);
 		//Sending message to server
       		if((w=write(skfd,sbuff,128))<0)

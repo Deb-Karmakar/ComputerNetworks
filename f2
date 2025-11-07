@@ -1,0 +1,12 @@
+total 120
+-rwxrwxr-x 1 iot1 iot1 16688 Aug 29 15:02 a.out
+-rwxrwxr-x 1 iot1 iot1 17504 Aug  1 16:42 client
+-rw-rw-r-- 1 iot1 iot1  1823 Aug  8 14:11 client.c
+-rw-rw-r-- 1 iot1 iot1     0 Aug 29 15:02 f2
+-rw-rw-r-- 1 iot1 iot1    73 Aug 29 15:02 f.c
+-rwxrwxr-x 1 iot1 iot1 17440 Aug  8 16:03 itclient
+-rw-rw-r-- 1 iot1 iot1  2442 Aug 29 14:21 itclient.c
+-rwxrwxr-x 1 iot1 iot1 17752 Aug  8 16:35 itserver
+-rw-rw-r-- 1 iot1 iot1  3457 Aug 29 14:17 itserver.c
+-rwxrwxr-x 1 iot1 iot1 17552 Aug  1 15:18 server
+-rw-rw-r-- 1 iot1 iot1  2660 Aug  8 14:10 server.c

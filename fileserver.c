@@ -1,90 +1,159 @@
+// TCP ITERATIVE FILE SERVER
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdio.h>
+
+#define MAXLINE 1024
 
 struct sockaddr_in serv_addr, cli_addr;
+unsigned short serv_port = 25020;
+char serv_ip[] = "127.0.0.1";     
+char buffer[MAXLINE];
 
-int listenfd, connfd, r, w, cli_addr_len;
+int file_exists(const char *filename);
 
-unsigned short serv_port = 25020; // port number to be used by the server
-char serv_ip[] = "127.0.0.1"; // server IP address
+int main()
+{
+    int listenfd, connfd;
+    socklen_t cli_len;
+    char filename[256];
+    FILE *fp;
 
-char buff[120]; // buffer for sending and receiving messages
+    
+    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
 
-int main() {
-    // Initializing server socket address structure with zero values
+    
     bzero(&serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(serv_port);
+    inet_aton(serv_ip, &serv_addr.sin_addr);
 
-    // Filling up the server socket address structure with appropriate values
-    serv_addr.sin_family = AF_INET; // address family
-    serv_addr.sin_port = htons(serv_port); // port number
-    inet_aton(serv_ip, &serv_addr.sin_addr); // IP address
-
-    printf("\nTCP ECHO SERVER.\n");
-
-    // Creating socket
-    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("\nSERVER ERROR: cannot create socket.\n");
-        exit(1);
-    }
-
-    // Binding server socket address structure
-    if (bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nSERVER ERROR: Cannot bind.\n");
+    
+    if (bind(listenfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        printf("Bind failed");
         close(listenfd);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    // Listen to client connection requests
-    if (listen(listenfd, 5) < 0) {
-        printf("\nSERVER ERROR: Cannot listen.\n");
+    // Listen
+    if (listen(listenfd, 5) < 0)
+    {
+        printf("Listen failed");
         close(listenfd);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    cli_addr_len = sizeof(cli_addr);
-    for (;;) {
-        printf("\nSERVER: Listening for clients... Press Ctrl + C to stop the server.\n");
-        
-        // Accept client connections
-        if ((connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &cli_addr_len)) < 0) {
-            printf("\nSERVER ERROR: Cannot accept client connections\n");
-            close(listenfd);
-            exit(1);
-        }
-        
-        printf("\nSERVER: Connection from client %s accepted.\n", inet_ntoa(cli_addr.sin_addr));
-        
-        // Waiting for messages from client
-        if ((r = read(connfd, buff, sizeof(buff) - 1)) < 0) {
-            printf("\nSERVER ERROR: Cannot receive message from client.\n");
-        } else {
-            buff[r] = '\0';
+    printf("TCP FILE SERVER STARTED on IP %s, PORT %d...\n", serv_ip, serv_port);
 
-            // === CHANGE STARTS HERE ===
-            FILE *fp = fopen(buff, "r");
-            if (fp == NULL) {
-                strcpy(buff, "NOT FOUND");
-            } else {
-                strcpy(buff, "FOUND");
-                fclose(fp);
-            }
-            // === CHANGE ENDS HERE ===
+    while (1)
+    {
+        cli_len = sizeof(cli_addr);
+        printf("\nWaiting for client connection...\n");
 
-            // Send back response
-            if ((w = write(connfd, buff, strlen(buff))) < 0) {
-                printf("\nSERVER ERROR: Cannot send message to the client.\n");
-            } else {
-                printf("\nSERVER: Sent response %s to %s.\n", buff, inet_ntoa(cli_addr.sin_addr));
-            }
+        if ((connfd = accept(listenfd, (struct sockaddr *)&cli_addr, &cli_len)) < 0)
+        {
+            printf("Accept failed");
+            continue;
         }
+
+        printf("Connected to client: %s\n", inet_ntoa(cli_addr.sin_addr));
+
         
-        close(connfd); // Close the connection after handling the client
-    } // for ends
-} // main ends
+        bzero(filename, sizeof(filename));
+        int r = read(connfd, filename, sizeof(filename) - 1);
+        if (r <= 0)
+        {
+            printf("Failed to receive filename from client.\n");
+            close(connfd);
+            continue;
+        }
+        filename[r] = '\0';
+
+        printf("Requested file: %s\n", filename);
+
+       
+        if (!file_exists(filename))
+        {
+            char *msg = "ERROR: File not found on server.\n";
+            write(connfd, msg, strlen(msg));
+            printf("File not found: %s\n", filename);
+        }
+        else
+        {
+           
+            char *msg = "OK\n";
+            write(connfd, msg, strlen(msg));
+            printf("Sent OK message. Waiting for client READY...\n");
+
+       
+            char ack[32];
+            bzero(ack, sizeof(ack));
+            int ack_r = read(connfd, ack, sizeof(ack) - 1);
+            if (ack_r <= 0 || strncmp(ack, "READY", 5) != 0)
+            {
+                printf("Client did not respond with READY. Aborting.\n");
+                close(connfd);
+                continue;
+            }
+
+            
+            fp = fopen(filename, "r");
+            if (fp == NULL)
+            {
+                printf("Failed to open file");
+                close(connfd);
+                continue;
+            }
+
+            while (fgets(buffer, MAXLINE, fp) != NULL)
+            {
+                write(connfd, buffer, strlen(buffer));
+            }
+
+            fclose(fp);
+            printf("File '%s' sent to client.\n", filename);
+        }
+
+        close(connfd);
+        printf("Connection closed with client.\n");
+    }
+
+    close(listenfd);
+    return 0;
+}
+
+// Function to check if file exists using shell command
+int file_exists(const char *filename)
+{
+    char cmd[512];
+    char result[256];
+    FILE *fp;
+
+    sprintf(cmd, "ls | grep '^%s$'", filename);
+    fp = popen(cmd, "r");
+    if (fp == NULL)
+    {
+        printf("popen failed");
+        return 0;
+    }
+
+    if (fgets(result, sizeof(result), fp) != NULL)
+    {
+        pclose(fp);
+        return 1;
+    }
+
+    pclose(fp);
+    return 0;
+}
 

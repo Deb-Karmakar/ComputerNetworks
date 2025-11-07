@@ -1,5 +1,3 @@
-// TCP ITERATIVE FILE CLIENT
-
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -12,57 +10,48 @@
 #define MAXLINE 1024
 
 struct sockaddr_in serv_addr;
-int skfd, r, w;
+int skfd;
 unsigned short serv_port = 25020;
-char serv_ip[] = "127.0.0.1";    
+char serv_ip[] = "127.0.0.1"; // server IP address
 
 int main()
 {
     char buff[MAXLINE];
     char filename[256];
     FILE *fp = NULL;
+    socklen_t serv_len = sizeof(serv_addr);
 
-    printf("\nTCP FILE CLIENT\n");
+    printf("\nUDP FILE CLIENT\n");
 
-    
-    if ((skfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    // Create UDP socket
+    if ((skfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("CLIENT ERROR: Cannot create socket");
         exit(EXIT_FAILURE);
     }
 
-    
     bzero(&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(serv_port);
     inet_aton(serv_ip, &serv_addr.sin_addr);
-
-    
-    if (connect(skfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        perror("CLIENT ERROR: Cannot connect to server");
-        close(skfd);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Connected to server %s:%d\n", serv_ip, serv_port);
 
     // Get filename from user
     printf("Enter filename to request from server: ");
     fgets(filename, sizeof(filename), stdin);
     filename[strcspn(filename, "\n")] = '\0';
 
-    // Send filename to server
-    if (write(skfd, filename, strlen(filename)) < 0)
+    // Send filename request to server
+    if (sendto(skfd, filename, strlen(filename), 0,
+               (struct sockaddr *)&serv_addr, serv_len) < 0)
     {
         perror("CLIENT ERROR: Failed to send filename");
         close(skfd);
         exit(EXIT_FAILURE);
     }
 
-    // Receive initial server response
-    bzero(buff, MAXLINE);
-    r = read(skfd, buff, MAXLINE - 1);
+    // Receive server response ("OK" or "ERROR")
+    int r = recvfrom(skfd, buff, MAXLINE - 1, 0,
+                     (struct sockaddr *)&serv_addr, &serv_len);
     if (r <= 0)
     {
         printf("No response from server or connection closed.\n");
@@ -71,7 +60,6 @@ int main()
     }
     buff[r] = '\0';
 
-    // Check server response
     if (strncmp(buff, "ERROR", 5) == 0)
     {
         printf("SERVER: %s\n", buff);
@@ -79,17 +67,15 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Server sent OK
-    printf("SERVER: %s", buff);  // Will be "OK\n"
+    printf("SERVER: %s\n", buff);
 
-    // Ask user what to do
     int choice;
     printf("Choose an option:\n");
-    printf("1. Print file contents\n");
-    printf("2. Save file\n");
+    printf("1. Print file contents to screen\n");
+    printf("2. Save file locally\n");
     printf("Enter choice (1 or 2): ");
     scanf("%d", &choice);
-    getchar();
+    getchar(); // Consume newline
 
     if (choice == 2)
     {
@@ -107,22 +93,30 @@ int main()
         printf("Printing file contents:\n\n");
     }
 
-    // 
-    char *ack = "READY\n";
-    write(skfd, ack, strlen(ack));
+    printf("Receiving file data...\n");
 
-    // Receive file content
-    while ((r = read(skfd, buff, MAXLINE - 1)) > 0)
+    // Receive file data packets until timeout or no more data
+    struct timeval tv;
+    tv.tv_sec = 3;  // timeout of 3 seconds
+    tv.tv_usec = 0;
+    setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    while (1)
     {
+        r = recvfrom(skfd, buff, MAXLINE - 1, 0,
+                     (struct sockaddr *)&serv_addr, &serv_len);
+        if (r <= 0)
+        {
+            // Timeout or no data - assume transmission finished
+            break;
+        }
         buff[r] = '\0';
+
         if (choice == 2)
             fputs(buff, fp);
         else
             printf("%s", buff);
     }
-
-    if (r < 0)
-        perror("CLIENT ERROR: Error receiving file data");
 
     if (fp)
     {
